@@ -197,7 +197,10 @@ def run_installer():
     if args.pfx_file:
         pfx_file = args.pfx_file
     debug(get_system())
+
+
     debug("Calling InstallerData")
+
     installer_data = InstallerData(silent=silent, username=username,
                                    password=password, pfx_file=pfx_file)
 
@@ -206,10 +209,7 @@ def run_installer():
         config_tool = CatNMConfigTool()
         if config_tool.connect_to_nm() is None:
             NM_AVAILABLE = False
-    if not NM_AVAILABLE:
-        # no dbus so ask if the user will want wpa_supplicant config
-        if installer_data.ask(Messages.save_wpa_conf, Messages.cont, 1):
-            sys.exit(1)
+
     installer_data.get_user_cred()
 
     # get user credentials from file
@@ -310,19 +310,8 @@ class InstallerData(object):
             self.graphics = 'tty'
         else:
             self.__get_graphics_support()
-        if self.ask(Config.init_confirmation.format(Config.instname,
-                                                    Config.profilename),
-                    Messages.cont, 1):
-            sys.exit(1)
-        if Config.tou != '':
-            if self.ask(Config.tou, Messages.cont, 1):
-                sys.exit(1)
-        if os.path.exists(os.environ.get('HOME') + '/.cat_installer'):
-            if self.ask(Messages.cat_dir_exists.format(
-                    os.environ.get('HOME') + '/.cat_installer'),
-                    Messages.cont, 1):
-                sys.exit(1)
-        else:
+        debug("Check if .cat-installer directory exists")
+        if not os.path.exists(os.environ.get('HOME') + '/.cat_installer'):
             os.mkdir(os.environ.get('HOME') + '/.cat_installer', 0o700)
 
     def save_ca(self):

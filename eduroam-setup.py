@@ -6,7 +6,7 @@ It is intended for headless setup of a raspberry pi
 
 Usage:
 
-put a plain file using the following structure to the "/" path of the sd card of your raspberry pi:
+put a plain file using the following structure to the "~/" path of the sd card of your raspberry pi:
 
 EDUROAM_USER: username@UNIBE.CH
 EDUROAM_PSWD: userpassword
@@ -68,7 +68,7 @@ DEBUG_ON = False
 DEV_NULL = open("/dev/null", "w")
 STDERR_REDIR = DEV_NULL
 
-CONFIG_FILE_PATH = "/"
+CONFIG_FILE_PATH = "~/"
 
 def debug(msg):
     """Print debbuging messages to stdout"""

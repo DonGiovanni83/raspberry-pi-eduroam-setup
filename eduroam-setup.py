@@ -352,16 +352,7 @@ class InstallerData(object):
         """
         Show a piece of information
         """
-        if self.graphics == 'tty':
-            print(data)
-            return
-        if self.graphics == "zenity":
-            command = ['zenity', '--info', '--width=500', '--text=' + data]
-        elif self.graphics == "kdialog":
-            command = ['kdialog', '--msgbox', data]
-        else:
-            sys.exit(1)
-        subprocess.call(command, stderr=STDERR_REDIR)
+        debug("Info : " + data)
 
     def confirm_exit(self):
         """

@@ -6,7 +6,7 @@ It is intended for headless setup of a raspberry pi
 
 Usage:
 
-put a plain file using the following structure to the "~/" path of the sd card of your raspberry pi:
+put a plain file using the following structure to the "/raspberry-config" path of the sd card of your raspberry pi:
 
 EDUROAM_USER: username@UNIBE.CH
 EDUROAM_PSWD: userpassword
@@ -69,7 +69,7 @@ DEBUG_ON = False
 DEV_NULL = open("/dev/null", "w")
 STDERR_REDIR = DEV_NULL
 
-CONFIG_FILE_PATH = "~/"
+CONFIG_FILE_PATH = "/raspberry-config"
 EDUROAM_USER = "EDUROAM_USER"
 EDUROAM_PWD = "EDUROAM_PWD"
 
@@ -442,13 +442,12 @@ class InstallerData(object):
         """
         Extract username and password from config file in given path
         """
-        cr = config_reader.ConfigFileReader(self.config_file_path)
+        cr = ConfigFileReader(self.config_file_path)
 
         self.username = cr.get_value(EDUROAM_USER)
         debug("Username set to : " + self.username)
         self.password = cr.get_value(EDUROAM_PWD)
         debug("Password set to : " + self.password)
-
 
     def __get_graphics_support(self):
         if os.environ.get('DISPLAY') is not None:
@@ -888,6 +887,7 @@ class ConfigFileReader(object):
 
     def read_config_file(self):
         try:
+            debug("Config file path : " + CONFIG_FILE_PATH)
             file = open(self.config_file_path)
             self.config_file = file.readlines()
             file.close()
@@ -895,7 +895,7 @@ class ConfigFileReader(object):
             print("No configuration File found.")
 
     def get_value(self, key):
-        finder = ValueFinder
+        finder = ValueFinder()
         return finder.find_value_by_key(file=self.config_file, key=key)
 
 

@@ -358,9 +358,7 @@ class InstallerData(object):
         """
         Confirm exit from installer
         """
-        ret = self.ask(Messages.quit)
-        if ret == 0:
-            sys.exit(1)
+        sys.exit(1)
 
     def alert(self, text):
         """Generate alert message"""

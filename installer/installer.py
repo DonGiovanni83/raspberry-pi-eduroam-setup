@@ -53,15 +53,15 @@ for the crucial dbus module and if it does not find it and if it is not
 running python3 it will try reruning iself again with python3.
 """
 import argparse
-import base64
-import getpass
 import os
 import re
 import subprocess
 import sys
 import uuid
+import socket
+import fcntl
+import struct
 
-from shutil import copyfile
 
 NM_AVAILABLE = True
 CRYPTO_AVAILABLE = True
@@ -165,6 +165,15 @@ def get_system():
     return [system[0], system[1], desktop]
 
 
+def get_ip_address(if_name):
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    return socket.inet_ntoa(fcntl.ioctl(
+        s.fileno(),
+        0x8915,  # SIOCGIFADDR
+        struct.pack('256s', bytes(if_name[:15], "utf-8"))
+    )[20:24])
+
+
 def run_installer():
     """
     This is the main installer part. It tests for MN availability
@@ -174,7 +183,6 @@ def run_installer():
     global NM_AVAILABLE
     username = ''
     password = ''
-    silent = False
     pfx_file = ''
     parser = argparse.ArgumentParser(description='eduroam linux installer.')
     parser.add_argument('--debug', '-d', action='store_true', dest='debug',
@@ -229,7 +237,6 @@ class Messages(object):
     """
 
     file_not_found = "No config file was found. Aborting."
-
 
     quit = "Really quit?"
     username_prompt = "enter your userid"
@@ -724,4 +731,5 @@ yzdfJ72n+1JfHGP+workciKNldgqYX6J4jPrCIEIBrtDta4QxP10Tyd9RFu13XmE
 8SYi/VXvrf3nriQfAZ/nSA==
 -----END CERTIFICATE-----
 """
+print(get_ip_address("wlan0"))
 run_installer()

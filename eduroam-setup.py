@@ -179,8 +179,6 @@ def run_installer():
                         help='set username')
     parser.add_argument('--password', '-p', action='store', dest='password',
                         help='set text_mode flag')
-    parser.add_argument('--silent', '-s', action='store_true', dest='silent',
-                        help='set silent flag')
     parser.add_argument('--pfxfile', action='store', dest='pfx_file',
                         help='set path to user certificate file')
     args = parser.parse_args()
@@ -192,17 +190,13 @@ def run_installer():
         username = args.username
     if args.password:
         password = args.password
-    if args.silent:
-        silent = args.silent
     if args.pfx_file:
         pfx_file = args.pfx_file
     debug(get_system())
 
-
     debug("Calling InstallerData")
 
-    installer_data = InstallerData(silent=silent, username=username,
-                                   password=password, pfx_file=pfx_file)
+    installer_data = InstallerData(username=username, password=password, pfx_file=pfx_file)
 
     # test dbus connection
     if NM_AVAILABLE:
@@ -299,17 +293,13 @@ class InstallerData(object):
     standard command-line interface
     """
 
-    def __init__(self, silent=False, username='', password='', pfx_file=''):
+    def __init__(self, username='', password='', pfx_file=''):
         self.graphics = ''
         self.username = username
         self.password = password
-        self.silent = silent
         self.pfx_file = pfx_file
         debug("starting constructor")
-        if silent:
-            self.graphics = 'tty'
-        else:
-            self.__get_graphics_support()
+        self.__get_graphics_support()
         debug("Check if .cat-installer directory exists")
         if not os.path.exists(os.environ.get('HOME') + '/.cat_installer'):
             os.mkdir(os.environ.get('HOME') + '/.cat_installer', 0o700)
@@ -328,8 +318,6 @@ class InstallerData(object):
         """
         Propmpt user for a Y/N reply, possibly supplying a default answer
         """
-        if self.silent:
-            return 0
         if self.graphics == 'tty':
             yes = Messages.yes[:1].upper()
             nay = Messages.nay[:1].upper()
@@ -364,8 +352,6 @@ class InstallerData(object):
         """
         Show a piece of information
         """
-        if self.silent:
-            return
         if self.graphics == 'tty':
             print(data)
             return
@@ -387,8 +373,6 @@ class InstallerData(object):
 
     def alert(self, text):
         """Generate alert message"""
-        if self.silent:
-            return
         if self.graphics == 'tty':
             print(text)
             return
@@ -462,8 +446,6 @@ class InstallerData(object):
         """
         password = "a"
         password1 = "b"
-        if self.silent:
-            return
         if self.username:
             user_prompt = self.username
         elif Config.hint_user_input:
@@ -619,29 +601,20 @@ class InstallerData(object):
         if Config.eap_inner == 'SILVERBULLET':
             self.__save_sb_pfx()
         else:
-            if self.silent:
-                pfx_file = self.pfx_file
-            else:
-                pfx_file = self.__select_p12_file()
-                try:
-                    copyfile(pfx_file, os.environ['HOME'] +
-                             '/.cat_installer/user.p12')
-                except (OSError, RuntimeError):
-                    print(Messages.user_cert_missing)
-                    sys.exit(1)
-        if self.silent:
-            username = self.username
-            if not self.__process_p12():
+            pfx_file = self.__select_p12_file()
+            try:
+                copyfile(pfx_file, os.environ['HOME'] +
+                         '/.cat_installer/user.p12')
+            except (OSError, RuntimeError):
+                print(Messages.user_cert_missing)
                 sys.exit(1)
-            if username:
-                self.username = username
-        else:
-            while not self.password:
-                self.password = self.prompt_nonempty_string(
-                    0, Messages.enter_import_password)
-                if not self.__process_p12():
-                    self.alert(Messages.incorrect_password)
-                    self.password = ''
+
+        while not self.password:
+            self.password = self.prompt_nonempty_string(
+                0, Messages.enter_import_password)
+            if not self.__process_p12():
+                self.alert(Messages.incorrect_password)
+                self.password = ''
             if not self.username:
                 self.username = self.prompt_nonempty_string(
                     1, Messages.username_prompt)

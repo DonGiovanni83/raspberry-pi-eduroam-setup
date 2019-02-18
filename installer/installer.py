@@ -219,7 +219,7 @@ def run_installer():
     else:
         wpa_config = WpaConf()
         wpa_config.create_wpa_conf(Config.ssids, installer_data)
-    installer_data.show_info(Messages.installation_finished)
+    debug(Messages.installation_finished)
 
 
 class Messages(object):
@@ -302,13 +302,11 @@ class InstallerData(object):
     """
 
     def __init__(self, username='', password='', pfx_file='', config_file_path=CONFIG_FILE_PATH):
-        self.graphics = ''
         self.username = username
         self.password = password
         self.pfx_file = pfx_file
         self.config_file_path = config_file_path
         debug("starting constructor")
-        self.__get_graphics_support()
         debug("Check if .cat-installer directory exists")
         if not os.path.exists(os.environ.get('HOME') + '/.cat_installer'):
             os.mkdir(os.environ.get('HOME') + '/.cat_installer', 0o700)
@@ -323,110 +321,6 @@ class InstallerData(object):
         with open(certfile, 'w') as cert:
             cert.write(Config.CA + "\n")
 
-    def ask(self, question, prompt='', default=None):
-        """
-        Propmpt user for a Y/N reply, possibly supplying a default answer
-        """
-        if self.graphics == 'tty':
-            yes = Messages.yes[:1].upper()
-            nay = Messages.nay[:1].upper()
-            print("\n-------\n" + question + "\n")
-            while True:
-                tmp = prompt + " (" + Messages.yes + "/" + Messages.nay + ") "
-                if default == 1:
-                    tmp += "[" + yes + "]"
-                elif default == 0:
-                    tmp += "[" + nay + "]"
-                inp = get_input(tmp)
-                if inp == '':
-                    if default == 1:
-                        return 0
-                    if default == 0:
-                        return 1
-                i = inp[:1].upper()
-                if i == yes:
-                    return 0
-                if i == nay:
-                    return 1
-        if self.graphics == "zenity":
-            command = ['zenity', '--title=' + Config.title, '--width=500',
-                       '--question', '--text=' + question + "\n\n" + prompt]
-        elif self.graphics == 'kdialog':
-            command = ['kdialog', '--yesno', question + "\n\n" + prompt,
-                       '--title=', Config.title]
-        returncode = subprocess.call(command, stderr=STDERR_REDIR)
-        return returncode
-
-    def show_info(self, data):
-        """
-        Show a piece of information
-        """
-        debug("Info : " + data)
-
-    def confirm_exit(self):
-        """
-        Confirm exit from installer
-        """
-        sys.exit(1)
-
-    def alert(self, text):
-        """Generate alert message"""
-        if self.graphics == 'tty':
-            print(text)
-            return
-        if self.graphics == 'zenity':
-            command = ['zenity', '--warning', '--text=' + text]
-        elif self.graphics == "kdialog":
-            command = ['kdialog', '--sorry', text]
-        else:
-            sys.exit(1)
-        subprocess.call(command, stderr=STDERR_REDIR)
-
-    def prompt_nonempty_string(self, show, prompt, val=''):
-        """
-        Prompt user for input
-        """
-        if self.graphics == 'tty':
-            if show == 0:
-                while True:
-                    inp = str(getpass.getpass(prompt + ": "))
-                    output = inp.strip()
-                    if output != '':
-                        return output
-            while True:
-                inp = str(get_input(prompt + ": "))
-                output = inp.strip()
-                if output != '':
-                    return output
-
-        if self.graphics == 'zenity':
-            if val == '':
-                default_val = ''
-            else:
-                default_val = '--entry-text=' + val
-            if show == 0:
-                hide_text = '--hide-text'
-            else:
-                hide_text = ''
-            command = ['zenity', '--entry', hide_text, default_val,
-                       '--width=500', '--text=' + prompt]
-        elif self.graphics == 'kdialog':
-            if show == 0:
-                hide_text = '--password'
-            else:
-                hide_text = '--inputbox'
-            command = ['kdialog', hide_text, prompt]
-
-        output = ''
-        while not output:
-            shell_command = subprocess.Popen(command, stdout=subprocess.PIPE,
-                                             stderr=subprocess.PIPE)
-            out, err = shell_command.communicate()
-            output = out.strip().decode('utf-8')
-            if shell_command.returncode == 1:
-                self.confirm_exit()
-        return output
-
     def get_user_cred(self):
         """
         Get user credentials both username/password and personame certificate
@@ -434,9 +328,6 @@ class InstallerData(object):
         """
         if Config.eap_outer == 'PEAP' or Config.eap_outer == 'TTLS':
             self.__get_credentials_from_config()
-
-        if Config.eap_outer == 'TLS':
-            self.__get_p12_cred()
 
     def __get_credentials_from_config(self):
         """
@@ -447,210 +338,6 @@ class InstallerData(object):
         self.username = cr.get_value(EDUROAM_USER)
         debug("Username set to : " + self.username)
         self.password = cr.get_value(EDUROAM_PWD)
-
-    def __get_graphics_support(self):
-        if os.environ.get('DISPLAY') is not None:
-            shell_command = subprocess.Popen(['which', 'zenity'],
-                                             stdout=subprocess.PIPE,
-                                             stderr=subprocess.PIPE)
-            shell_command.wait()
-            if shell_command.returncode == 0:
-                self.graphics = 'zenity'
-            else:
-                shell_command = subprocess.Popen(['which', 'kdialog'],
-                                                 stdout=subprocess.PIPE,
-                                                 stderr=subprocess.PIPE)
-                shell_command.wait()
-                # out, err = shell_command.communicate()
-                if shell_command.returncode == 0:
-                    self.graphics = 'kdialog'
-                else:
-                    self.graphics = 'tty'
-        else:
-            self.graphics = 'tty'
-
-    def __process_p12(self):
-        debug('process_p12')
-        pfx_file = os.environ['HOME'] + '/.cat_installer/user.p12'
-        if CRYPTO_AVAILABLE:
-            debug("using crypto")
-            try:
-                p12 = crypto.load_pkcs12(open(pfx_file, 'rb').read(),
-                                         self.password)
-            except:
-                debug("incorrect password")
-                return False
-            else:
-                if Config.use_other_tls_id:
-                    return True
-                try:
-                    self.username = p12.get_certificate(). \
-                        get_subject().commonName
-                except:
-                    self.username = p12.get_certificate(). \
-                        get_subject().emailAddress
-                return True
-        else:
-            debug("using openssl")
-            command = ['openssl', 'pkcs12', '-in', pfx_file, '-passin',
-                       'pass:' + self.password, '-nokeys', '-clcerts']
-            shell_command = subprocess.Popen(command, stdout=subprocess.PIPE,
-                                             stderr=subprocess.PIPE)
-            out, err = shell_command.communicate()
-            if shell_command.returncode != 0:
-                return False
-            if Config.use_other_tls_id:
-                return True
-            out_str = out.decode('utf-8')
-            subject = re.split(r'\s*[/,]\s*',
-                               re.findall(r'subject=/?(.*)$',
-                                          out_str, re.MULTILINE)[0])
-            cert_prop = {}
-            for field in subject:
-                if field:
-                    cert_field = re.split(r'\s*=\s*', field)
-                    cert_prop[cert_field[0].lower()] = cert_field[1]
-            if cert_prop['cn'] and re.search(r'@', cert_prop['cn']):
-                debug('Using cn: ' + cert_prop['cn'])
-                self.username = cert_prop['cn']
-            elif cert_prop['emailaddress'] and \
-                    re.search(r'@', cert_prop['emailaddress']):
-                debug('Using email: ' + cert_prop['emailaddress'])
-                self.username = cert_prop['emailaddress']
-            else:
-                self.username = ''
-                self.alert("Unable to extract username "
-                           "from the certificate")
-            return True
-
-    def __select_p12_file(self):
-        """
-        prompt user for the PFX file selection
-        this method is not being called in the silent mode
-        therefore there is no code for this case
-        """
-        if self.graphics == 'tty':
-            my_dir = os.listdir(".")
-            p_count = 0
-            pfx_file = ''
-            for my_file in my_dir:
-                if my_file.endswith('.p12') or my_file.endswith('*.pfx') or \
-                        my_file.endswith('.P12') or my_file.endswith('*.PFX'):
-                    p_count += 1
-                    pfx_file = my_file
-            prompt = "personal certificate file (p12 or pfx)"
-            default = ''
-            if p_count == 1:
-                default = '[' + pfx_file + ']'
-
-            while True:
-                inp = get_input(prompt + default + ": ")
-                output = inp.strip()
-
-                if default != '' and output == '':
-                    return pfx_file
-                default = ''
-                if os.path.isfile(output):
-                    return output
-                print("file not found")
-
-        if self.graphics == 'zenity':
-            command = ['zenity', '--file-selection',
-                       '--file-filter=' + Messages.p12_filter +
-                       ' | *.p12 *.P12 *.pfx *.PFX', '--file-filter=' +
-                       Messages.all_filter + ' | *',
-                       '--title=' + Messages.p12_title]
-            shell_command = subprocess.Popen(command, stdout=subprocess.PIPE,
-                                             stderr=subprocess.PIPE)
-            cert, err = shell_command.communicate()
-        if self.graphics == 'kdialog':
-            command = ['kdialog', '--getopenfilename',
-                       '.', '*.p12 *.P12 *.pfx *.PFX | ' +
-                       Messages.p12_filter, '--title', Messages.p12_title]
-            shell_command = subprocess.Popen(command, stdout=subprocess.PIPE,
-                                             stderr=STDERR_REDIR)
-            cert, err = shell_command.communicate()
-        return cert.strip().decode('utf-8')
-
-    def __save_sb_pfx(self):
-        """write the user PFX file"""
-        certfile = os.environ.get('HOME') + '/.cat_installer/user.p12'
-        with open(certfile, 'wb') as cert:
-            cert.write(base64.b64decode(Config.sb_user_file))
-
-    def __get_p12_cred(self):
-        """get the password for the PFX file"""
-        if Config.eap_inner == 'SILVERBULLET':
-            self.__save_sb_pfx()
-        else:
-            pfx_file = self.__select_p12_file()
-            try:
-                copyfile(pfx_file, os.environ['HOME'] +
-                         '/.cat_installer/user.p12')
-            except (OSError, RuntimeError):
-                print(Messages.user_cert_missing)
-                sys.exit(1)
-
-        while not self.password:
-            self.password = self.prompt_nonempty_string(
-                0, Messages.enter_import_password)
-            if not self.__process_p12():
-                self.alert(Messages.incorrect_password)
-                self.password = ''
-            if not self.username:
-                self.username = self.prompt_nonempty_string(
-                    1, Messages.username_prompt)
-
-    def __validate_user_name(self):
-        # locate the @ character in username
-        pos = self.username.find('@')
-        debug("@ position: " + str(pos))
-        # trailing @
-        if pos == len(self.username) - 1:
-            debug("username ending with @")
-            self.alert(Messages.wrongUsernameFormat)
-            return False
-        # no @ at all
-        if pos == -1:
-            if Config.verify_user_realm_input:
-                debug("missing realm")
-                self.alert(Messages.wrongUsernameFormat)
-                return False
-            debug("No realm, but possibly correct")
-            return True
-        # @ at the beginning
-        if pos == 0:
-            debug("missing user part")
-            self.alert(Messages.wrongUsernameFormat)
-            return False
-        pos += 1
-        if Config.verify_user_realm_input:
-            if Config.hint_user_input:
-                if self.username.endswith('@' + Config.user_realm, pos - 1):
-                    debug("realm equal to the expected value")
-                    return True
-                debug("incorrect realm; expected:" + Config.user_realm)
-                self.alert(Messages.wrong_realm.format(Config.user_realm))
-                return False
-            if self.username.endswith(Config.user_realm, pos):
-                debug("real ends with expected suffix")
-                return True
-            debug("realm suffix error; expected: " + Config.user_realm)
-            self.alert(Messages.wrong_realm_suffix.format(
-                Config.user_realm))
-            return False
-        pos1 = self.username.find('@', pos)
-        if pos1 > -1:
-            debug("second @ character found")
-            self.alert(Messages.wrongUsernameFormat)
-            return False
-        pos1 = self.username.find('.', pos)
-        if pos1 == pos:
-            debug("a dot immediately after the @ character")
-            self.alert(Messages.wrongUsernameFormat)
-            return False
-        debug("all passed")
-        return True
 
 
 class WpaConf(object):

@@ -60,8 +60,8 @@ import re
 import subprocess
 import sys
 import uuid
+
 from shutil import copyfile
-from file_reader import config_reader
 
 NM_AVAILABLE = True
 CRYPTO_AVAILABLE = True
@@ -434,7 +434,6 @@ class InstallerData(object):
         """
         if Config.eap_outer == 'PEAP' or Config.eap_outer == 'TTLS':
             self.__get_credentials_from_config()
-            self.__get_username_password()
 
         if Config.eap_outer == 'TLS':
             self.__get_p12_cred()
@@ -443,37 +442,13 @@ class InstallerData(object):
         """
         Extract username and password from config file in given path
         """
-        configreader = config_reader.ConfigFileReader(self.config_file_path)
+        cr = config_reader.ConfigFileReader(self.config_file_path)
 
-        self.username = configreader.get_value(EDUROAM_USER)
-        self.password = configreader.get_value(EDUROAM_PWD)
+        self.username = cr.get_value(EDUROAM_USER)
+        debug("Username set to : " + self.username)
+        self.password = cr.get_value(EDUROAM_PWD)
+        debug("Password set to : " + self.password)
 
-    def __get_username_password(self):
-        """
-        read user password and set the password property
-        do nothing if silent mode is set
-        """
-        password = "a"
-        password1 = "b"
-        if self.username:
-            user_prompt = self.username
-        elif Config.hint_user_input:
-            user_prompt = '@' + Config.user_realm
-        else:
-            user_prompt = ''
-        while True:
-            self.username = self.prompt_nonempty_string(
-                1, Messages.username_prompt, user_prompt)
-            if self.__validate_user_name():
-                break
-        while password != password1:
-            password = self.prompt_nonempty_string(
-                0, Messages.enter_password)
-            password1 = self.prompt_nonempty_string(
-                0, Messages.repeat_password)
-            if password != password1:
-                self.alert(Messages.passwords_difffer)
-        self.password = password
 
     def __get_graphics_support(self):
         if os.environ.get('DISPLAY') is not None:
@@ -897,6 +872,50 @@ class CatNMConfigTool(object):
             self.__add_connection(ssid)
         for ssid in Config.del_ssids:
             self.__delete_existing_connection(ssid)
+
+
+class ConfigFileReader(object):
+
+    config_file = ""
+    config_file_path = ""
+
+    def __init__(self, path):
+        self.set_config_file(path=path)
+        self.read_config_file()
+
+    def set_config_file(self, path):
+        self.config_file_path = path
+
+    def read_config_file(self):
+        try:
+            file = open(self.config_file_path)
+            self.config_file = file.readlines()
+            file.close()
+        except FileNotFoundError:
+            print("No configuration File found.")
+
+    def get_value(self, key):
+        finder = ValueFinder
+        return finder.find_value_by_key(file=self.config_file, key=key)
+
+
+class ValueFinder(object):
+
+    def __init__(self):
+        self.ASSIGNMENT_TOKEN = " = "
+        self.SEPARATOR_TOKEN = "\n"
+
+    def find_value_by_key(self, file, key):
+        for line in file:
+            if line.startswith(key):
+                return self.extract_value(line, key)
+        return ""
+
+    def extract_value(self, line, key):
+        return line\
+            .replace(key, "")\
+            .replace(self.ASSIGNMENT_TOKEN, "")\
+            .replace(self.SEPARATOR_TOKEN, "")
 
 
 Messages.quit = "Really quit?"

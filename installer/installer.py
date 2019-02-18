@@ -61,6 +61,7 @@ import subprocess
 import sys
 import uuid
 from shutil import copyfile
+from file_reader import config_reader
 
 NM_AVAILABLE = True
 CRYPTO_AVAILABLE = True
@@ -69,6 +70,8 @@ DEV_NULL = open("/dev/null", "w")
 STDERR_REDIR = DEV_NULL
 
 CONFIG_FILE_PATH = "~/"
+EDUROAM_USER = "EDUROAM_USER"
+EDUROAM_PWD = "EDUROAM_PWD"
 
 def debug(msg):
     """Print debbuging messages to stdout"""
@@ -298,11 +301,12 @@ class InstallerData(object):
     standard command-line interface
     """
 
-    def __init__(self, username='', password='', pfx_file=''):
+    def __init__(self, username='', password='', pfx_file='', config_file_path=CONFIG_FILE_PATH):
         self.graphics = ''
         self.username = username
         self.password = password
         self.pfx_file = pfx_file
+        self.config_file_path = config_file_path
         debug("starting constructor")
         self.__get_graphics_support()
         debug("Check if .cat-installer directory exists")
@@ -429,9 +433,20 @@ class InstallerData(object):
         based
         """
         if Config.eap_outer == 'PEAP' or Config.eap_outer == 'TTLS':
+            self.__get_credentials_from_config()
             self.__get_username_password()
+
         if Config.eap_outer == 'TLS':
             self.__get_p12_cred()
+
+    def __get_credentials_from_config(self):
+        """
+        Extract username and password from config file in given path
+        """
+        configreader = config_reader.ConfigFileReader(self.config_file_path)
+
+        self.username = configreader.get_value(EDUROAM_USER)
+        self.password = configreader.get_value(EDUROAM_PWD)
 
     def __get_username_password(self):
         """

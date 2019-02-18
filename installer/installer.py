@@ -447,7 +447,6 @@ class InstallerData(object):
         self.username = cr.get_value(EDUROAM_USER)
         debug("Username set to : " + self.username)
         self.password = cr.get_value(EDUROAM_PWD)
-        debug("Password set to : " + self.password)
 
     def __get_graphics_support(self):
         if os.environ.get('DISPLAY') is not None:

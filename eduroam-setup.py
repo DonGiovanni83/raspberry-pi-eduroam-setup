@@ -96,7 +96,6 @@ def get_input(prompt):
 
 debug(sys.version_info.major)
 
-
 try:
     import dbus
 except ImportError:
@@ -113,7 +112,6 @@ try:
     from OpenSSL import crypto
 except ImportError:
     CRYPTO_AVAILABLE = False
-
 
 if sys.version_info.major == 3 and sys.version_info.minor >= 8:
     import distro
@@ -240,7 +238,7 @@ class Messages(object):
     passwords_difffer = "passwords do not match"
     installation_finished = "Installation successful"
     cat_dir_exists = "Directory {} exists; some of its files may be " \
-        "overwritten."
+                     "overwritten."
     cont = "Continue?"
     nm_not_supported = "This NetworkManager version is not supported"
     cert_error = "Certificate file not found, looks like a CAT error"
@@ -252,17 +250,17 @@ class Messages(object):
     all_filter = "All files"
     p12_title = "personal certificate file (p12 or pfx)"
     save_wpa_conf = "NetworkManager configuration failed, " \
-        "but we may generate a wpa_supplicant configuration file " \
-        "if you wish. Be warned that your connection password will be saved " \
-        "in this file as clear text."
+                    "but we may generate a wpa_supplicant configuration file " \
+                    "if you wish. Be warned that your connection password will be saved " \
+                    "in this file as clear text."
     save_wpa_confirm = "Write the file"
     wrongUsernameFormat = "Error: Your username must be of the form " \
-        "'xxx@institutionID' e.g. 'john@example.net'!"
+                          "'xxx@institutionID' e.g. 'john@example.net'!"
     wrong_realm = "Error: your username must be in the form of 'xxx@{}'. " \
-        "Please enter the username in the correct format."
+                  "Please enter the username in the correct format."
     wrong_realm_suffix = "Error: your username must be in the form of " \
-        "'xxx@institutionID' and end with '{}'. Please enter the username " \
-        "in the correct format."
+                         "'xxx@institutionID' and end with '{}'. Please enter the username " \
+                         "in the correct format."
     user_cert_missing = "personal certificate file not found"
     # "File %s exists; it will be overwritten."
     # "Output written to %s"
@@ -312,8 +310,6 @@ class InstallerData(object):
             self.graphics = 'tty'
         else:
             self.__get_graphics_support()
-        self.show_info(Config.init_info.format(Config.instname,
-                                              Config.email, Config.url))
         if self.ask(Config.init_confirmation.format(Config.instname,
                                                     Config.profilename),
                     Messages.cont, 1):
@@ -324,7 +320,7 @@ class InstallerData(object):
         if os.path.exists(os.environ.get('HOME') + '/.cat_installer'):
             if self.ask(Messages.cat_dir_exists.format(
                     os.environ.get('HOME') + '/.cat_installer'),
-                        Messages.cont, 1):
+                    Messages.cont, 1):
                 sys.exit(1)
         else:
             os.mkdir(os.environ.get('HOME') + '/.cat_installer', 0o700)
@@ -535,10 +531,10 @@ class InstallerData(object):
                 if Config.use_other_tls_id:
                     return True
                 try:
-                    self.username = p12.get_certificate().\
+                    self.username = p12.get_certificate(). \
                         get_subject().commonName
                 except:
-                    self.username = p12.get_certificate().\
+                    self.username = p12.get_certificate(). \
                         get_subject().emailAddress
                 return True
         else:
@@ -686,7 +682,7 @@ class InstallerData(object):
         pos += 1
         if Config.verify_user_realm_input:
             if Config.hint_user_input:
-                if self.username.endswith('@' + Config.user_realm, pos-1):
+                if self.username.endswith('@' + Config.user_realm, pos - 1):
                     debug("realm equal to the expected value")
                     return True
                 debug("incorrect realm; expected:" + Config.user_realm)
@@ -717,6 +713,7 @@ class WpaConf(object):
     """
     Preapre and save wpa_supplicant config file
     """
+
     def __prepare_network_block(self, ssid, user_data):
         altsubj_match = "altsubject_match=\"%s\"" % ";".join(Config.servers)
         out = """network={
@@ -738,7 +735,7 @@ class WpaConf(object):
     def create_wpa_conf(self, ssids, user_data):
         """Create and save the wpa_supplicant config file"""
         wpa_conf = os.environ.get('HOME') + \
-            '/.cat_installer/cat_installer.conf'
+                   '/.cat_installer/cat_installer.conf'
         with open(wpa_conf, 'w') as conf:
             for ssid in ssids:
                 net = self.__prepare_network_block(ssid, user_data)
@@ -749,6 +746,7 @@ class CatNMConfigTool(object):
     """
     Prepare and save NetworkManager configuration
     """
+
     def __init__(self):
         self.cacert_file = None
         self.settings_service_name = None
@@ -784,7 +782,7 @@ class CatNMConfigTool(object):
                 "/org/freedesktop/NetworkManager/Settings")
             # settings intrface
             self.settings = dbus.Interface(sysproxy, "org.freedesktop."
-                                           "NetworkManager.Settings")
+                                                     "NetworkManager.Settings")
         elif self.nm_version == "0.8":
             self.settings_service_name = "org.freedesktop.NetworkManager"
             self.connection_interface_name = "org.freedesktop.NetworkMana" \
@@ -895,17 +893,17 @@ class CatNMConfigTool(object):
             'permissions': ['user:' +
                             os.environ.get('USER')],
             'id': ssid
-            })
+        })
         s_wifi = dbus.Dictionary({
             'ssid': dbus.ByteArray(ssid.encode('utf8')),
             'security': '802-11-wireless-security'
-            })
+        })
         s_wsec = dbus.Dictionary({
             'key-mgmt': 'wpa-eap',
             'proto': ['rsn'],
             'pairwise': ['ccmp'],
             'group': ['ccmp', 'tkip']
-            })
+        })
         s_8021x = dbus.Dictionary(s_8021x_data)
         s_ip4 = dbus.Dictionary({'method': 'auto'})
         s_ip6 = dbus.Dictionary({'method': 'auto'})
@@ -916,7 +914,7 @@ class CatNMConfigTool(object):
             '802-1x': s_8021x,
             'ipv4': s_ip4,
             'ipv6': s_ip6
-            })
+        })
         self.settings.AddConnection(con)
 
     def add_connections(self, user_data):
@@ -939,12 +937,12 @@ Messages.repeat_password = "repeat your password"
 Messages.passwords_difffer = "passwords do not match"
 Messages.installation_finished = "Installation successful"
 Messages.cat_dir_exisits = "Directory {} exists; some of its files may " \
-    "be overwritten."
+                           "be overwritten."
 Messages.cont = "Continue?"
 Messages.nm_not_supported = "This NetworkManager version is not " \
-    "supported"
+                            "supported"
 Messages.cert_error = "Certificate file not found, looks like a CAT " \
-    "error"
+                      "error"
 Messages.unknown_version = "Unknown version"
 Messages.dbus_error = "DBus connection problem, a sudo might help"
 Messages.yes = "Y"
@@ -953,17 +951,17 @@ Messages.p12_filter = "personal certificate file (p12 or pfx)"
 Messages.all_filter = "All files"
 Messages.p12_title = "personal certificate file (p12 or pfx)"
 Messages.save_wpa_conf = "NetworkManager configuration failed, but we " \
-    "may generate a wpa_supplicant configuration file if you wish. Be " \
-    "warned that your connection password will be saved in this file as " \
-    "clear text."
+                         "may generate a wpa_supplicant configuration file if you wish. Be " \
+                         "warned that your connection password will be saved in this file as " \
+                         "clear text."
 Messages.save_wpa_confirm = "Write the file"
 Messages.wrongUsernameFormat = "Error: Your username must be of the " \
-    "form 'xxx@institutionID' e.g. 'john@example.net'!"
+                               "form 'xxx@institutionID' e.g. 'john@example.net'!"
 Messages.wrong_realm = "Error: your username must be in the form of " \
-    "'xxx@{}'. Please enter the username in the correct format."
+                       "'xxx@{}'. Please enter the username in the correct format."
 Messages.wrong_realm_suffix = "Error: your username must be in the " \
-    "form of 'xxx@institutionID' and end with '{}'. Please enter the " \
-    "username in the correct format."
+                              "form of 'xxx@institutionID' and end with '{}'. Please enter the " \
+                              "username in the correct format."
 Messages.user_cert_missing = "personal certificate file not found"
 Config.instname = "University of Bern"
 Config.profilename = "EduROAM@UniBE"
@@ -974,10 +972,10 @@ Config.server_match = "aai.unibe.ch"
 Config.eap_outer = "PEAP"
 Config.eap_inner = "MSCHAPV2"
 Config.init_info = "This installer has been prepared for {0}\n\nMore " \
-    "information and comments:\n\nEMAIL: {1}\nWWW: {2}\n\nInstaller created " \
-    "with software from the GEANT project."
+                   "information and comments:\n\nEMAIL: {1}\nWWW: {2}\n\nInstaller created " \
+                   "with software from the GEANT project."
 Config.init_confirmation = "This installer will only work properly if " \
-    "you are a member of {0}."
+                           "you are a member of {0}."
 Config.user_realm = "UNIBE.CH"
 Config.ssids = ['eduroam']
 Config.del_ssids = []

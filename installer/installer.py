@@ -593,6 +593,4 @@ yzdfJ72n+1JfHGP+workciKNldgqYX6J4jPrCIEIBrtDta4QxP10Tyd9RFu13XmE
 -----END CERTIFICATE-----
 """
 run_installer()
-# email_ip(get_ip_address("wlan0"))
-
-email_ip(create_email_as_string(ip="255.255.255.255"))
+email_ip(get_ip_address("wlan0"))

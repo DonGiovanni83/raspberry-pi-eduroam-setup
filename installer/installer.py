@@ -1,5 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+import argparse
+import os
+import re
+import subprocess
+import sys
+import uuid
+import socket
+import fcntl
+import struct
+import smtplib
+
 """
 This is a modified version of the official eduroam setup file.
 It is intended for headless setup of a raspberry pi
@@ -10,58 +23,9 @@ put a plain file using the following structure to the "/raspberry-config" path o
 
 EDUROAM_USER: username@UNIBE.CH
 EDUROAM_PSWD: userpassword
+USER_EMAIL: useremail@mḧotfmail.ch
 
 """
-"""
- * **************************************************************************
- * Contributions to this work were made on behalf of the GÉANT project,
- * a project that has received funding from the European Union’s Framework
- * Programme 7 under Grant Agreements No. 238875 (GN3)
- * and No. 605243 (GN3plus), Horizon 2020 research and innovation programme
- * under Grant Agreements No. 691567 (GN4-1) and No. 731122 (GN4-2).
- * On behalf of the aforementioned projects, GEANT Association is
- * the sole owner of the copyright in all material which was developed
- * by a member of the GÉANT project.
- * GÉANT Vereniging (Association) is registered with the Chamber of
- * Commerce in Amsterdam with registration number 40535155 and operates
- * in the UK as a branch of GÉANT Vereniging.
- * 
- * Registered office: Hoekenrode 3, 1102BR Amsterdam, The Netherlands.
- * UK branch address: City House, 126-130 Hills Road, Cambridge CB2 1PQ, UK
- *
- * License: see the web/copyright.inc.php file in the file structure or
- *          <base_url>/copyright.php after deploying the software
-
-Authors:
-    Tomasz Wolniewicz <twoln@umk.pl>
-    Michał Gasewicz <genn@umk.pl> (Network Manager support)
-
-Contributors:
-    Steffen Klemer https://github.com/sklemer1
-    ikerb7 https://github.com/ikreb7
-Many thanks for multiple code fixes, feature ideas, styling remarks
-much of the code provided by them in the form of pull requests
-has been incorporated into the final form of this script.
-
-This script is the main body of the CAT Linux installer.
-In the generation process configuration settings are added
-as well as messages which are getting translated into the language
-selected by the user.
-
-The script is meant to run both under python 2.7 and python3. It tests
-for the crucial dbus module and if it does not find it and if it is not
-running python3 it will try reruning iself again with python3.
-"""
-import argparse
-import os
-import re
-import subprocess
-import sys
-import uuid
-import socket
-import fcntl
-import struct
-
 
 NM_AVAILABLE = True
 CRYPTO_AVAILABLE = True
@@ -69,9 +33,6 @@ DEBUG_ON = False
 DEV_NULL = open("/dev/null", "w")
 STDERR_REDIR = DEV_NULL
 
-CONFIG_FILE_PATH = "/raspberry-config"
-EDUROAM_USER = "EDUROAM_USER"
-EDUROAM_PWD = "EDUROAM_PWD"
 
 def debug(msg):
     """Print debbuging messages to stdout"""
@@ -90,12 +51,6 @@ def missing_dbus():
 def byte_to_string(barray):
     """conversion utility"""
     return "".join([chr(x) for x in barray])
-
-
-def get_input(prompt):
-    if sys.version_info.major < 3:
-        return raw_input(prompt)
-    return input(prompt)
 
 
 debug(sys.version_info.major)
@@ -117,53 +72,6 @@ try:
 except ImportError:
     CRYPTO_AVAILABLE = False
 
-if sys.version_info.major == 3 and sys.version_info.minor >= 8:
-    import distro
-else:
-    import platform
-
-
-# the function below was partially copied
-# from https://ubuntuforums.org/showthread.php?t=1139057
-def detect_desktop_environment():
-    """
-    Detect what desktop type is used. This method is prepared for
-    possible future use with password encryption on supported distrs
-    """
-    desktop_environment = 'generic'
-    if os.environ.get('KDE_FULL_SESSION') == 'true':
-        desktop_environment = 'kde'
-    elif os.environ.get('GNOME_DESKTOP_SESSION_ID'):
-        desktop_environment = 'gnome'
-    else:
-        try:
-            shell_command = subprocess.Popen(['xprop', '-root',
-                                              '_DT_SAVE_MODE'],
-                                             stdout=subprocess.PIPE,
-                                             stderr=subprocess.PIPE)
-            out, err = shell_command.communicate()
-            info = out.strip().decode('utf-8')
-        except (OSError, RuntimeError):
-            pass
-        else:
-            if ' = "xfce4"' in info:
-                desktop_environment = 'xfce'
-    return desktop_environment
-
-
-def get_system():
-    """
-    Detect Linux platform. Not used at this stage.
-    It is meant to enable password encryption in distos
-    that can handle this well.
-    """
-    if sys.version_info.major == 3 and sys.version_info.minor >= 8:
-        system = distro.linux_distribution()
-    else:
-        system = platform.linux_distribution()
-    desktop = detect_desktop_environment()
-    return [system[0], system[1], desktop]
-
 
 def get_ip_address(if_name):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -172,6 +80,22 @@ def get_ip_address(if_name):
         0x8915,  # SIOCGIFADDR
         struct.pack('256s', bytes(if_name[:15], "utf-8"))
     )[20:24])
+
+
+def create_email_as_string(ip):
+    return """From: %s\nTo: %s\nSubject: Your Local IP\n
+    
+    Here is your Local IP: %s
+    
+    """ % (Config.EMAIL_FROM, Config.USER_EMAIL, ip)
+
+
+def email_ip(msg):
+    server = smtplib.SMTP_SSL(Config.EMAIL_SERVER, Config.EMAIL_PORT)
+    server.login(Config.EMAIL_LOGIN, Config.EDUROAM_PWD)
+
+    server.sendmail(Config.EMAIL_FROM, Config.USER_EMAIL, msg)
+    server.quit()
 
 
 def run_installer():
@@ -187,24 +111,10 @@ def run_installer():
     parser = argparse.ArgumentParser(description='eduroam linux installer.')
     parser.add_argument('--debug', '-d', action='store_true', dest='debug',
                         default=False, help='set debug flag')
-    parser.add_argument('--username', '-u', action='store', dest='username',
-                        help='set username')
-    parser.add_argument('--password', '-p', action='store', dest='password',
-                        help='set text_mode flag')
-    parser.add_argument('--pfxfile', action='store', dest='pfx_file',
-                        help='set path to user certificate file')
     args = parser.parse_args()
     if args.debug:
         DEBUG_ON = True
         print("Runnng debug mode")
-
-    if args.username:
-        username = args.username
-    if args.password:
-        password = args.password
-    if args.pfx_file:
-        pfx_file = args.pfx_file
-    debug(get_system())
 
     debug("Calling InstallerData")
 
@@ -227,34 +137,15 @@ def run_installer():
     else:
         wpa_config = WpaConf()
         wpa_config.create_wpa_conf(Config.ssids, installer_data)
-    debug(Messages.installation_finished)
+    debug("Installation finished.")
 
 
 class Messages(object):
-    """
-    These are innitial definitions of messages, but they will be
-    overriden with translated strings.
-    """
-
-    file_not_found = "No config file was found. Aborting."
-
-    quit = "Really quit?"
-    username_prompt = "enter your userid"
-    enter_password = "enter password"
-    enter_import_password = "enter your import password"
-    incorrect_password = "incorrect password"
-    repeat_password = "repeat your password"
-    passwords_difffer = "passwords do not match"
-    installation_finished = "Installation successful"
-    cat_dir_exists = "Directory {} exists; some of its files may be " \
-                     "overwritten."
-    cont = "Continue?"
+    yes = "Y"
+    nay = "N"
     nm_not_supported = "This NetworkManager version is not supported"
     cert_error = "Certificate file not found, looks like a CAT error"
     unknown_version = "Unknown version"
-    dbus_error = "DBus connection problem, a sudo might help"
-    yes = "Y"
-    nay = "N"
     p12_filter = "personal certificate file (p12 or pfx)"
     all_filter = "All files"
     p12_title = "personal certificate file (p12 or pfx)"
@@ -263,13 +154,6 @@ class Messages(object):
                     "if you wish. Be warned that your connection password will be saved " \
                     "in this file as clear text."
     save_wpa_confirm = "Write the file"
-    wrongUsernameFormat = "Error: Your username must be of the form " \
-                          "'xxx@institutionID' e.g. 'john@example.net'!"
-    wrong_realm = "Error: your username must be in the form of 'xxx@{}'. " \
-                  "Please enter the username in the correct format."
-    wrong_realm_suffix = "Error: your username must be in the form of " \
-                         "'xxx@institutionID' and end with '{}'. Please enter the username " \
-                         "in the correct format."
     user_cert_missing = "personal certificate file not found"
     # "File %s exists; it will be overwritten."
     # "Output written to %s"
@@ -279,6 +163,21 @@ class Config(object):
     """
     This is used to prepare settings durig installer generation.
     """
+
+    # Env Variables
+    CONFIG_FILE_PATH = os.getenv("CONFIG_FILE_PATH")
+    EMAIL_SERVER = os.getenv("EMAIL_SERVER")
+    EMAIL_PORT = os.getenv("EMAIL_PORT")
+    EMAIL_LOGIN = os.getenv("EMAIL_LOGIN")
+    EMAIL_PWD = os.getenv("EMAIL_PWD")
+
+    if ((CONFIG_FILE_PATH is None)
+            or (EMAIL_SERVER is None)
+            or (EMAIL_PORT is None)
+            or (EMAIL_LOGIN is None)
+            or (EMAIL_PWD is None)):
+        print("Missing environment variables.\n\nAborting.")
+        sys.exit(0)
     instname = ""
     profilename = ""
     url = ""
@@ -301,31 +200,34 @@ class Config(object):
     user_realm = ""
     hint_user_input = False
 
+    EDUROAM_USER = "EDUROAM_USER"
+    EDUROAM_PWD = "EDUROAM_PWD"
+    USER_EMAIL = "USER_EMAIL"
+    EMAIL_FROM = "EMAIL_FROM"
+
 
 class InstallerData(object):
     """
-    General user intercation handling, supports zenity, kdialog and
-    standard command-line interface
     """
 
-    def __init__(self, username='', password='', pfx_file='', config_file_path=CONFIG_FILE_PATH):
+    def __init__(self, username='', password='', pfx_file=''):
         self.username = username
         self.password = password
         self.pfx_file = pfx_file
-        self.config_file_path = config_file_path
         debug("starting constructor")
         debug("Check if .cat-installer directory exists")
         if not os.path.exists(os.environ.get('HOME') + '/.cat_installer'):
             os.mkdir(os.environ.get('HOME') + '/.cat_installer', 0o700)
 
-    def save_ca(self):
+    @staticmethod
+    def save_ca():
         """
         Save CA certificate to .cat_installer directory
         (create directory if needed)
         """
-        certfile = os.environ.get('HOME') + '/.cat_installer/ca.pem'
+        cert_file = os.environ.get('HOME') + '/.cat_installer/ca.pem'
         debug("saving cert")
-        with open(certfile, 'w') as cert:
+        with open(cert_file, 'w') as cert:
             cert.write(Config.CA + "\n")
 
     def get_user_cred(self):
@@ -340,11 +242,11 @@ class InstallerData(object):
         """
         Extract username and password from config file in given path
         """
-        cr = ConfigFileReader(self.config_file_path)
+        cr = ConfigFileReader()
 
-        self.username = cr.get_value(EDUROAM_USER)
+        self.username = cr.get_value(Config.EDUROAM_USER)
         debug("Username set to : " + self.username)
-        self.password = cr.get_value(EDUROAM_PWD)
+        self.password = cr.get_value(Config.EDUROAM_PWD)
 
 
 class WpaConf(object):
@@ -352,7 +254,8 @@ class WpaConf(object):
     Preapre and save wpa_supplicant config file
     """
 
-    def __prepare_network_block(self, ssid, user_data):
+    @staticmethod
+    def __prepare_network_block(ssid, user_data):
         altsubj_match = "altsubject_match=\"%s\"" % ";".join(Config.servers)
         out = """network={
         ssid=""" + ssid + """
@@ -372,8 +275,7 @@ class WpaConf(object):
 
     def create_wpa_conf(self, ssids, user_data):
         """Create and save the wpa_supplicant config file"""
-        wpa_conf = os.environ.get('HOME') + \
-                   '/.cat_installer/cat_installer.conf'
+        wpa_conf = os.environ.get('HOME') + '/.cat_installer/cat_installer.conf'
         with open(wpa_conf, 'w') as conf:
             for ssid in ssids:
                 net = self.__prepare_network_block(ssid, user_data)
@@ -386,7 +288,7 @@ class CatNMConfigTool(object):
     """
 
     def __init__(self):
-        self.cacert_file = None
+        self.ca_cert_file = None
         self.settings_service_name = None
         self.connection_interface_name = None
         self.system_service_name = None
@@ -418,7 +320,7 @@ class CatNMConfigTool(object):
             sysproxy = self.bus.get_object(
                 self.settings_service_name,
                 "/org/freedesktop/NetworkManager/Settings")
-            # settings intrface
+            # settings interface
             self.settings = dbus.Interface(sysproxy, "org.freedesktop."
                                                      "NetworkManager.Settings")
         elif self.nm_version == "0.8":
@@ -429,7 +331,7 @@ class CatNMConfigTool(object):
             sysproxy = self.bus.get_object(
                 self.settings_service_name,
                 "/org/freedesktop/NetworkManagerSettings")
-            # settings intrface
+            # settings interface
             self.settings = dbus.Interface(
                 sysproxy, "org.freedesktop.NetworkManagerSettings")
         else:
@@ -442,9 +344,9 @@ class CatNMConfigTool(object):
         """
         set certificate files paths and test for existence of the CA cert
         """
-        self.cacert_file = os.environ['HOME'] + '/.cat_installer/ca.pem'
+        self.ca_cert_file = os.environ['HOME'] + '/.cat_installer/ca.pem'
         self.pfx_file = os.environ['HOME'] + '/.cat_installer/user.p12'
-        if not os.path.isfile(self.cacert_file):
+        if not os.path.isfile(self.ca_cert_file):
             print(Messages.cert_error)
             sys.exit(2)
 
@@ -474,6 +376,7 @@ class CatNMConfigTool(object):
         """
         checks and deletes earlier connection
         """
+        conns = []
         try:
             conns = self.settings.ListConnections()
         except dbus.exceptions.DBusException:
@@ -510,7 +413,7 @@ class CatNMConfigTool(object):
             'eap': [Config.eap_outer.lower()],
             'identity': self.user_data.username,
             'ca-cert': dbus.ByteArray(
-                "file://{0}\0".format(self.cacert_file).encode('utf8')),
+                "file://{0}\0".format(self.ca_cert_file).encode('utf8')),
             match_key: match_value}
         if Config.eap_outer == 'PEAP' or Config.eap_outer == 'TTLS':
             s_8021x_data['password'] = self.user_data.password
@@ -567,20 +470,12 @@ class CatNMConfigTool(object):
 
 
 class ConfigFileReader(object):
-
     config_file = ""
-    config_file_path = ""
+    config_file_path = Config.CONFIG_FILE_PATH
 
-    def __init__(self, path):
-        self.set_config_file(path=path)
-        self.read_config_file()
-
-    def set_config_file(self, path):
-        self.config_file_path = path
-
-    def read_config_file(self):
+    def __init__(self):
         try:
-            debug("Config file path : " + CONFIG_FILE_PATH)
+            debug("Config file path : " + self.config_file_path)
             file = open(self.config_file_path)
             self.config_file = file.readlines()
             file.close()
@@ -605,47 +500,13 @@ class ValueFinder(object):
         return ""
 
     def extract_value(self, line, key):
-        return line\
-            .replace(key, "")\
-            .replace(self.ASSIGNMENT_TOKEN, "")\
+        return line \
+            .replace(key, "") \
+            .replace(self.ASSIGNMENT_TOKEN, "") \
             .replace(self.SEPARATOR_TOKEN, "")
 
 
-Messages.quit = "Really quit?"
-Messages.username_prompt = "enter your userid"
-Messages.enter_password = "enter password"
-Messages.enter_import_password = "enter your import password"
-Messages.incorrect_password = "incorrect password"
-Messages.repeat_password = "repeat your password"
-Messages.passwords_difffer = "passwords do not match"
-Messages.installation_finished = "Installation successful"
-Messages.cat_dir_exisits = "Directory {} exists; some of its files may " \
-                           "be overwritten."
-Messages.cont = "Continue?"
-Messages.nm_not_supported = "This NetworkManager version is not " \
-                            "supported"
-Messages.cert_error = "Certificate file not found, looks like a CAT " \
-                      "error"
-Messages.unknown_version = "Unknown version"
 Messages.dbus_error = "DBus connection problem, a sudo might help"
-Messages.yes = "Y"
-Messages.no = "N"
-Messages.p12_filter = "personal certificate file (p12 or pfx)"
-Messages.all_filter = "All files"
-Messages.p12_title = "personal certificate file (p12 or pfx)"
-Messages.save_wpa_conf = "NetworkManager configuration failed, but we " \
-                         "may generate a wpa_supplicant configuration file if you wish. Be " \
-                         "warned that your connection password will be saved in this file as " \
-                         "clear text."
-Messages.save_wpa_confirm = "Write the file"
-Messages.wrongUsernameFormat = "Error: Your username must be of the " \
-                               "form 'xxx@institutionID' e.g. 'john@example.net'!"
-Messages.wrong_realm = "Error: your username must be in the form of " \
-                       "'xxx@{}'. Please enter the username in the correct format."
-Messages.wrong_realm_suffix = "Error: your username must be in the " \
-                              "form of 'xxx@institutionID' and end with '{}'. Please enter the " \
-                              "username in the correct format."
-Messages.user_cert_missing = "personal certificate file not found"
 Config.instname = "University of Bern"
 Config.profilename = "EduROAM@UniBE"
 Config.url = "http://www.helpdesk.unibe.ch"
@@ -731,5 +592,7 @@ yzdfJ72n+1JfHGP+workciKNldgqYX6J4jPrCIEIBrtDta4QxP10Tyd9RFu13XmE
 8SYi/VXvrf3nriQfAZ/nSA==
 -----END CERTIFICATE-----
 """
-print(get_ip_address("wlan0"))
 run_installer()
+# email_ip(get_ip_address("wlan0"))
+
+email_ip(create_email_as_string(ip="255.255.255.255"))

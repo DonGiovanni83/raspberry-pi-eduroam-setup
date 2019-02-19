@@ -8,9 +8,9 @@ Some functions are taken from the official [eduroam linux installer](https://cat
 
  1. Create a file named _rapberry-config_ containing following information:
 ```
-EDUROAM-USER = username@UNIBERN.ch
+EDUROAM_USER = username@UNIBERN.ch
 
-EDUROAM-PWD = userpasswd
+EDUROAM_PWD = userpasswd
 
 USER_EMAIL = useremail@hotgmail.ch
 
